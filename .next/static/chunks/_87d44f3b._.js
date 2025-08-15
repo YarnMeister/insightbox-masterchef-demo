@@ -439,7 +439,6 @@ var _s = __turbopack_context__.k.signature();
 ;
 ;
 function InsightBox() {
-    var _populationData_metadata, _populationData_metadata1;
     _s();
     const [populationData, setPopulationData] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])(null);
     const [insights, setInsights] = (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$index$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["useState"])([]);
@@ -451,20 +450,21 @@ function InsightBox() {
         try {
             setFetching(true);
             console.log('🔄 Fetching WorldPop data for US 2000...');
-            console.log('🔧 Using Next.js API route to avoid CORS issues');
-            const geojson = worldPopClient.getUSBoundary();
-            console.log('📍 GeoJSON boundary:', geojson);
-            // Use the API route approach
-            const data = await worldPopClient.getPopulationData('wpgpas', 2000, geojson);
+            console.log('🔧 Using REAL API calls (not mock data) - VERSION 2.0');
+            console.log('🚀 This should make actual network requests to WorldPop API');
+            // Test direct API call first
+            console.log('🧪 Testing direct API call...');
+            const testResponse = await fetch('https://api.worldpop.org/v1/services/stats?dataset=wpgpas&year=2000&geojson=%7B%22type%22%3A%22FeatureCollection%22%2C%22features%22%3A%5B%7B%22type%22%3A%22Feature%22%2C%22properties%22%3A%7B%22name%22%3A%22USA%20Continental%22%7D%2C%22geometry%22%3A%7B%22type%22%3A%22Polygon%22%2C%22coordinates%22%3A%5B%5B-125.0%2C48.0%5D%2C%5B-125.0%2C25.0%5D%2C%5B-66.0%2C25.0%5D%2C%5B-66.0%2C48.0%5D%2C%5B-125.0%2C48.0%5D%5D%5D%7D%7D%5D%7D');
+            console.log('📡 Direct API response status:', testResponse.status);
+            const testData = await testResponse.json();
+            console.log('📡 Direct API response data:', testData);
+            if (!testData.taskid) {
+                throw new Error('No task ID received from WorldPop API');
+            }
+            console.log('📋 Task ID received:', testData.taskid);
+            console.log('⏳ Polling for results...');
+            const data = await worldPopClient.pollTaskResult(testData.taskid);
             console.log('✅ WorldPop data received:', data);
-            // Debug: Check if data has the expected structure
-            if (!data) {
-                throw new Error('No data received from WorldPop API');
-            }
-            if (!data.total_population) {
-                console.error('❌ Data missing total_population:', data);
-                throw new Error('Invalid data structure received from WorldPop API');
-            }
             setPopulationData(data);
             // Generate insights from the data
             const generatedInsights = generateInsightsFromData(data);
@@ -497,72 +497,37 @@ function InsightBox() {
     };
     // Generate insights from WorldPop data
     const generateInsightsFromData = (data)=>{
-        var _data_metadata, _data_metadata1, _data_metadata2, _data_metadata3, _data_metadata4;
         const totalPopulation = data.total_population;
-        // Handle both old format (age_groups) and new format (agesexpyramid)
-        let ageGroups = {};
-        if (data.age_groups) {
-            // Old format
-            ageGroups = data.age_groups;
-        } else if (data.agesexpyramid) {
-            // New format - convert agesexpyramid array to age_groups format
-            data.agesexpyramid.forEach((item)=>{
-                // Handle both object format and array format
-                let ageKey;
-                let male;
-                let female;
-                if (typeof item === 'object' && 'age' in item) {
-                    // Object format: { age: "0 to 1", male: 1000, female: 950 }
-                    ageKey = item.age.replace(' to ', '-').replace(' and over', '+');
-                    male = item.male;
-                    female = item.female;
-                } else if (Array.isArray(item)) {
-                    // Array format: [age_class, male_count, female_count]
-                    ageKey = "age-".concat(item[0]);
-                    male = item[1];
-                    female = item[2];
-                } else {
-                    console.warn('Unknown agesexpyramid item format:', item);
-                    return;
-                }
-                ageGroups[ageKey] = {
-                    male,
-                    female
-                };
-            });
-        }
-        console.log('📊 Processed age groups:', ageGroups);
+        const ageGroups = data.age_groups;
         // Calculate key demographics
         const youth = Object.entries(ageGroups).filter((param)=>{
             let [age] = param;
-            const ageNum = parseInt(age.split('-')[1] || age.split('-')[0]);
-            return ageNum < 25;
+            return parseInt(age) < 25;
         }).reduce((sum, param)=>{
-            let [_, groupData] = param;
-            return sum + groupData.male + groupData.female;
+            let [_, data] = param;
+            return sum + data.male + data.female;
         }, 0);
         const workingAge = Object.entries(ageGroups).filter((param)=>{
             let [age] = param;
-            const ageNum = parseInt(age.split('-')[1] || age.split('-')[0]);
+            const ageNum = parseInt(age);
             return ageNum >= 25 && ageNum < 65;
         }).reduce((sum, param)=>{
-            let [_, groupData] = param;
-            return sum + groupData.male + groupData.female;
+            let [_, data] = param;
+            return sum + data.male + data.female;
         }, 0);
         const seniors = Object.entries(ageGroups).filter((param)=>{
             let [age] = param;
-            const ageNum = parseInt(age.split('-')[1] || age.split('-')[0]);
-            return ageNum >= 65;
+            return parseInt(age) >= 65;
         }).reduce((sum, param)=>{
-            let [_, groupData] = param;
-            return sum + groupData.male + groupData.female;
+            let [_, data] = param;
+            return sum + data.male + data.female;
         }, 0);
-        const density = Math.round(totalPopulation / (((_data_metadata = data.metadata) === null || _data_metadata === void 0 ? void 0 : _data_metadata.area_km2) || 1000));
+        const density = Math.round(totalPopulation / data.metadata.area_km2);
         return [
             {
                 id: 1,
-                title: 'Population Overview',
-                insight: "Total population in ".concat(((_data_metadata1 = data.metadata) === null || _data_metadata1 === void 0 ? void 0 : _data_metadata1.year) || 2020, ": ").concat(totalPopulation.toLocaleString(), " people"),
+                title: 'US Population Overview',
+                insight: "Total US population in ".concat(data.metadata.year, ": ").concat(totalPopulation.toLocaleString(), " people"),
                 severity: 'low',
                 tags: [
                     'population',
@@ -584,7 +549,7 @@ function InsightBox() {
             {
                 id: 3,
                 title: 'Population Density',
-                insight: "Population density: ".concat(density, " people per km² across ").concat((((_data_metadata2 = data.metadata) === null || _data_metadata2 === void 0 ? void 0 : _data_metadata2.area_km2) || 1000).toLocaleString(), " km²"),
+                insight: "Population density: ".concat(density, " people per km² across ").concat(data.metadata.area_km2.toLocaleString(), " km²"),
                 severity: 'low',
                 tags: [
                     'density',
@@ -606,7 +571,7 @@ function InsightBox() {
             {
                 id: 5,
                 title: 'Data Source',
-                insight: "WorldPop dataset: ".concat(((_data_metadata3 = data.metadata) === null || _data_metadata3 === void 0 ? void 0 : _data_metadata3.dataset) || 'wpgpas', " for year ").concat(((_data_metadata4 = data.metadata) === null || _data_metadata4 === void 0 ? void 0 : _data_metadata4.year) || 2020),
+                insight: "WorldPop dataset: ".concat(data.metadata.dataset, " for year ").concat(data.metadata.year),
                 severity: 'low',
                 tags: [
                     'data-source',
@@ -650,7 +615,7 @@ function InsightBox() {
                         children: "🍳 InsightBox"
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 210,
+                        lineNumber: 170,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -658,7 +623,7 @@ function InsightBox() {
                         children: fetching ? 'Fetching WorldPop data...' : 'Loading insights...'
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 211,
+                        lineNumber: 171,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -668,7 +633,7 @@ function InsightBox() {
                                 className: "w-2 h-2 bg-white rounded-full animate-bounce"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 215,
+                                lineNumber: 175,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -678,7 +643,7 @@ function InsightBox() {
                                 }
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 216,
+                                lineNumber: 176,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -688,24 +653,24 @@ function InsightBox() {
                                 }
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 217,
+                                lineNumber: 177,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 214,
+                        lineNumber: 174,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 209,
+                lineNumber: 169,
                 columnNumber: 9
             }, this)
         }, void 0, false, {
             fileName: "[project]/src/app/page.tsx",
-            lineNumber: 208,
+            lineNumber: 168,
             columnNumber: 7
         }, this);
     }
@@ -727,7 +692,7 @@ function InsightBox() {
                                         children: "🍳 InsightBox"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 231,
+                                        lineNumber: 191,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -735,13 +700,13 @@ function InsightBox() {
                                         children: "MasterDev Edition"
                                     }, void 0, false, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 232,
+                                        lineNumber: 192,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 230,
+                                lineNumber: 190,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -753,28 +718,28 @@ function InsightBox() {
                                     children: loading ? 'Refreshing...' : 'Refresh Data'
                                 }, void 0, false, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 237,
+                                    lineNumber: 197,
                                     columnNumber: 15
                                 }, this)
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 236,
+                                lineNumber: 196,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 229,
+                        lineNumber: 189,
                         columnNumber: 11
                     }, this)
                 }, void 0, false, {
                     fileName: "[project]/src/app/page.tsx",
-                    lineNumber: 228,
+                    lineNumber: 188,
                     columnNumber: 9
                 }, this)
             }, void 0, false, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 227,
+                lineNumber: 187,
                 columnNumber: 7
             }, this),
             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("main", {
@@ -788,7 +753,7 @@ function InsightBox() {
                                 children: "US Population Data (2000)"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 254,
+                                lineNumber: 214,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -802,7 +767,7 @@ function InsightBox() {
                                                 children: populationData.total_population.toLocaleString()
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 257,
+                                                lineNumber: 217,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -810,13 +775,13 @@ function InsightBox() {
                                                 children: "Total Population"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 260,
+                                                lineNumber: 220,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 256,
+                                        lineNumber: 216,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -824,10 +789,10 @@ function InsightBox() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                 className: "text-3xl font-bold text-green-600",
-                                                children: Math.round(populationData.total_population / (((_populationData_metadata = populationData.metadata) === null || _populationData_metadata === void 0 ? void 0 : _populationData_metadata.area_km2) || 1000))
+                                                children: Math.round(populationData.total_population / populationData.metadata.area_km2)
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 263,
+                                                lineNumber: 223,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -835,13 +800,13 @@ function InsightBox() {
                                                 children: "People per km²"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 266,
+                                                lineNumber: 226,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 262,
+                                        lineNumber: 222,
                                         columnNumber: 15
                                     }, this),
                                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -849,10 +814,10 @@ function InsightBox() {
                                         children: [
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
                                                 className: "text-3xl font-bold text-purple-600",
-                                                children: (((_populationData_metadata1 = populationData.metadata) === null || _populationData_metadata1 === void 0 ? void 0 : _populationData_metadata1.area_km2) || 1000).toLocaleString()
+                                                children: populationData.metadata.area_km2.toLocaleString()
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 269,
+                                                lineNumber: 229,
                                                 columnNumber: 17
                                             }, this),
                                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -860,25 +825,25 @@ function InsightBox() {
                                                 children: "Area (km²)"
                                             }, void 0, false, {
                                                 fileName: "[project]/src/app/page.tsx",
-                                                lineNumber: 272,
+                                                lineNumber: 232,
                                                 columnNumber: 17
                                             }, this)
                                         ]
                                     }, void 0, true, {
                                         fileName: "[project]/src/app/page.tsx",
-                                        lineNumber: 268,
+                                        lineNumber: 228,
                                         columnNumber: 15
                                     }, this)
                                 ]
                             }, void 0, true, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 255,
+                                lineNumber: 215,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 253,
+                        lineNumber: 213,
                         columnNumber: 11
                     }, this),
                     /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -896,7 +861,7 @@ function InsightBox() {
                                                     children: insight.title
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/page.tsx",
-                                                    lineNumber: 284,
+                                                    lineNumber: 244,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -904,13 +869,13 @@ function InsightBox() {
                                                     children: insight.severity
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/page.tsx",
-                                                    lineNumber: 285,
+                                                    lineNumber: 245,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 283,
+                                            lineNumber: 243,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -918,7 +883,7 @@ function InsightBox() {
                                             children: insight.insight
                                         }, void 0, false, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 289,
+                                            lineNumber: 249,
                                             columnNumber: 17
                                         }, this),
                                         /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -931,12 +896,12 @@ function InsightBox() {
                                                             children: tag
                                                         }, index, false, {
                                                             fileName: "[project]/src/app/page.tsx",
-                                                            lineNumber: 293,
+                                                            lineNumber: 253,
                                                             columnNumber: 23
                                                         }, this))
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/page.tsx",
-                                                    lineNumber: 291,
+                                                    lineNumber: 251,
                                                     columnNumber: 19
                                                 }, this),
                                                 /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("span", {
@@ -944,29 +909,29 @@ function InsightBox() {
                                                     children: new Date(insight.created_at).toLocaleDateString()
                                                 }, void 0, false, {
                                                     fileName: "[project]/src/app/page.tsx",
-                                                    lineNumber: 298,
+                                                    lineNumber: 258,
                                                     columnNumber: 19
                                                 }, this)
                                             ]
                                         }, void 0, true, {
                                             fileName: "[project]/src/app/page.tsx",
-                                            lineNumber: 290,
+                                            lineNumber: 250,
                                             columnNumber: 17
                                         }, this)
                                     ]
                                 }, void 0, true, {
                                     fileName: "[project]/src/app/page.tsx",
-                                    lineNumber: 282,
+                                    lineNumber: 242,
                                     columnNumber: 15
                                 }, this)
                             }, insight.id, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 281,
+                                lineNumber: 241,
                                 columnNumber: 13
                             }, this))
                     }, void 0, false, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 279,
+                        lineNumber: 239,
                         columnNumber: 9
                     }, this),
                     insights.length === 0 && /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("div", {
@@ -977,7 +942,7 @@ function InsightBox() {
                                 children: "🍳"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 309,
+                                lineNumber: 269,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("h3", {
@@ -985,7 +950,7 @@ function InsightBox() {
                                 children: "No data available"
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 310,
+                                lineNumber: 270,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("p", {
@@ -993,7 +958,7 @@ function InsightBox() {
                                 children: 'Click "Refresh Data" to fetch WorldPop data'
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 311,
+                                lineNumber: 271,
                                 columnNumber: 13
                             }, this),
                             /*#__PURE__*/ (0, __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$compiled$2f$react$2f$jsx$2d$dev$2d$runtime$2e$js__$5b$app$2d$client$5d$__$28$ecmascript$29$__["jsxDEV"])("button", {
@@ -1003,25 +968,25 @@ function InsightBox() {
                                 children: loading ? 'Fetching...' : 'Fetch WorldPop Data'
                             }, void 0, false, {
                                 fileName: "[project]/src/app/page.tsx",
-                                lineNumber: 312,
+                                lineNumber: 272,
                                 columnNumber: 13
                             }, this)
                         ]
                     }, void 0, true, {
                         fileName: "[project]/src/app/page.tsx",
-                        lineNumber: 308,
+                        lineNumber: 268,
                         columnNumber: 11
                     }, this)
                 ]
             }, void 0, true, {
                 fileName: "[project]/src/app/page.tsx",
-                lineNumber: 250,
+                lineNumber: 210,
                 columnNumber: 7
             }, this)
         ]
     }, void 0, true, {
         fileName: "[project]/src/app/page.tsx",
-        lineNumber: 225,
+        lineNumber: 185,
         columnNumber: 5
     }, this);
 }

@@ -1,5 +1,6 @@
 {
-  "/api/worldpop/route": "app/api/worldpop/route.js",
+  "/api/favorites/route": "app/api/favorites/route.js",
+  "/api/nationalize/route": "app/api/nationalize/route.js",
   "/favicon.ico/route": "app/favicon.ico/route.js",
   "/page": "app/page.js"
 }

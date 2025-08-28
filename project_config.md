@@ -9,15 +9,14 @@
 - **Duration**: For the duration of this demo project
 
 ## Project Goals
-- Build InsightBox micro-dashboard live during presentation
-- Demonstrate Cursor AI + Supabase + ChatGPT integration
+- Demonstrate Cursor AI + Neon + ChatGPT integration
 - Show real-time development workflow
-- Create deployable demo in 20 minutes
+- Create deployable demo in under 20 minutes
 
 ## Tech Stack
 - Next.js with TypeScript
 - Tailwind CSS for styling
-- Supabase for backend/database
+- Neon for backend/database
 - OpenAI ChatGPT API for insights
 - Vercel for deployment
 
@@ -26,6 +25,7 @@
 - Live coding during presentation
 - Minimal setup time
 - Focus on working demo over perfect code structure
+- make each code commit as quick as possible, every second counts. But make sure each commit is effective.
 
 ## Notes
 - This is a demo project, not production code
